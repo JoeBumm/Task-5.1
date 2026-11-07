@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-
+import bcrypt from 'bcrypt';
 // Instructor Portal account.
 //
 // NOTE (security lab): this model is intentionally insecure. Passwords are
