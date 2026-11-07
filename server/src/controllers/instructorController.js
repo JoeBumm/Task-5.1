@@ -1,4 +1,5 @@
 import { Instructor } from '../models/Instructor.js';
+const bcrypt = require('bcrypt');
 
 // =============================================================================
 //  INSTRUCTOR PORTAL CONTROLLER  —  ⚠️ INTENTIONALLY VULNERABLE (security lab)
@@ -23,18 +24,23 @@ function publicProfile(doc) {
     username: doc.username,
     department: doc.department,
     role: doc.role,
-    apiKey: doc.apiKey,
-    privateEmail: doc.privateEmail,
-    privatePhone: doc.privatePhone
+    // apiKey: doc.apiKey,
+    // privateEmail: doc.privateEmail,
+    // privatePhone: doc.privatePhone
   };
 }
 
 // POST /api/instructors/login
 export async function loginInstructor(req, res, next) {
   try {
+    mongoSanitize.sanitize(req.body);
     const { username, password } = req.body;
-    if (username === undefined || password === undefined) {
-      return res.status(400).json({ message: 'username and password are required' });
+    // if (username === undefined || password === undefined) {
+    //   return res.status(400).json({ message: 'username and password are required' });
+    // }
+
+    if (typeof username !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ message: 'username and password must be strings' });
     }
 
     // ⚠️ VULNERABLE (NoSQL injection): `username` and `password` are placed
@@ -43,11 +49,16 @@ export async function loginInstructor(req, res, next) {
     // filter that matches any account (authentication bypass). With
     // {"password":{"$regex":"^S"}} the success/failure response becomes an
     // oracle for extracting the stored password one character at a time.
-    const instructor = await Instructor.findOne({ username, password });
+    // const instructor = await Instructor.findOne({ username, password });
 
-    if (!instructor) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
+    // if (!instructor) {
+    //   return res.status(401).json({ message: 'Invalid credentials' });
+    // }
+
+    const instructor = await Instructor.findOne({ username });
+      if (!instructor || !(await bcrypt.compare(password, instructor.password))) {
+        return res.status(401).json({ message: 'Invalid credentials' });
+      }
     return res.json({ instructor: publicProfile(instructor) });
   } catch (err) {
     next(err);
@@ -79,10 +90,24 @@ export async function searchInstructors(req, res, next) {
     //   ?role[$ne]=instructor           -> operator injection, leaks superadmin
     //   ?username[$regex]=^admin        -> regex enumeration
     //   ?$where=this.password.length>10 -> server-side JavaScript execution
-    const filter = req.query;
-    const instructors = await Instructor.find(filter).lean();
+    // const filter = req.query;
+    // const instructors = await Instructor.find(filter).lean();
+    mongoSanitize.sanitize(req.query);
+    const filter = {};
+    if (typeof req.query.name === 'string') filter.name = req.query.name;
+    if (typeof req.query.department === 'string') filter.department = req.query.department;
+    if (typeof req.query.role === 'string') filter.role = req.query.role;
+
+    const instructors = await Instructor.find(filter)
+      .select('name department role')
+      .lean();
+      
     res.json({ count: instructors.length, instructors });
-  } catch (err) {
+    } catch (err) {
     next(err);
-  }
+    }
+  //   res.json({ count: instructors.length, instructors });
+  // } catch (err) {
+  //   next(err);
+  // }
 }
