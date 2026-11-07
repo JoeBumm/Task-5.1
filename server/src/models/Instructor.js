@@ -21,6 +21,14 @@ const instructorSchema = new mongoose.Schema(
     privatePhone: { type: String }
   },
   { timestamps: true }
-);
+  );
+  // Automatically hash passwords before saving if they aren't already hashed
+  instructorSchema.pre('save', async function (next) {
+  if (!this.isModified('password')) return next();
+  if (!this.password.startsWith('$2')) {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
+  next();
+});
 
 export const Instructor = mongoose.model('Instructor', instructorSchema);
